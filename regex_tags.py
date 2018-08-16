@@ -2,7 +2,9 @@
 # Author: Faith
 # email: pyfaith@foxmail.com
 # Date: 2018/8/16
-
+'''
+定义查询正则
+'''
 regexTags = [
     (r"(\d)\1(?!\1)(\d)\2", "AABB"),
     (r"(\d)\1{2}", "AAA"),

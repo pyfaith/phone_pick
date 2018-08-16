@@ -33,8 +33,9 @@ class ApiStartHandler(ApiBaseHandler):
     '''
     global _worker
     def get(self):
+        global _worker
         _worker = Worker(
-            product = self.get_argument("product", "腾讯大王卡"),
+            product=self.get_argument("product", "腾讯大王卡"),
             province=self.get_argument("province", "上海"),
             provinceCode=self.get_argument("provinceCode", "31"),
             city=self.get_argument("city", "上海"),
@@ -72,6 +73,7 @@ class ApiStatusHandler(ApiBaseHandler):
             result_count = db_cursor.fetchone()[0]
         finally:
             conn.close()
+
         if _worker:
             result_data = {
                 "running": _worker.is_alive(),
@@ -90,7 +92,7 @@ class ApiStatusHandler(ApiBaseHandler):
                 "running": False,
                 "count": result_count
             }
-            self.write_json(result_data)
+        self.write_json(result_data)
 
 class ApiProductsHandler(ApiBaseHandler):
     '''获取联通互联网卡套餐信息'''
@@ -143,20 +145,25 @@ class ApiNumsHandler(ApiBaseHandler):
     '''获取数据库号码'''
     def get(self):
         query = []
-        if self.get_argument("filter"):
+        if self.get_argument("filter", None):
             filters = self.get_argument("filter").split("|")
             for f in filters:
                 query.append("tag LIKE '%,{},%'".format(f))
-        if self.get_argument("custom"):
+        if self.get_argument("custom", None):
             query.append("number REGEXP '{}'".format(self.get_argument("custom")))
         conn = getDatabaseConnection()
         db_cursor = conn.cursor()
-        if query:
-            db_cursor.execute("SELECT number,tag FROM tbl_numbers WHERE {};".format(" OR ".join(query)))
+        try:
+            if query:
+                db_cursor.execute("SELECT number,tag FROM tbl_numbers WHERE {};".format(" OR ".join(query)))
+            else:
+                db_cursor.execute("SELECT number,tag FROM tbl_numbers;")
+        except Exception as e:
+            print(e)
         else:
-            db_cursor.execute("SELECT number,tag FROM tbl_numbers;")
-        retsult_count = db_cursor.fetchall()
-        conn.close()
+            retsult_count = db_cursor.fetchall()
+        finally:
+            conn.close()
         result_data = list(map(lambda i: {"number": i[0], "tag": i[1].strip(",")}, retsult_count))
         self.write_json(result_data)
 
@@ -188,6 +195,7 @@ handlers = [
 
 settings = {
     'template_path': 'template',
+    'debug': True,
 }
 application = tornado.web.Application(
     handlers=handlers,
