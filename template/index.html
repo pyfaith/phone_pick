@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>王卡选号助手</title>
+    <link href="https://cdn.bootcss.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.bootcss.com/bootstrap-table/1.11.1/bootstrap-table.min.css" rel="stylesheet">
+</head>
+<style>
+    body {
+        padding-top: 70px;
+    }
+</style>
+
+<body>
+    <nav class="navbar navbar-default navbar-fixed-top">
+        <div class="container-fluid">
+            <div class="navbar-header">
+                <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="#">王卡选号助手</a>
+            </div>
+            <div class="collapse navbar-collapse" id="navbar">
+                <ul class="nav navbar-nav" id="app_district">
+                    <div class="btn-group navbar-btn">
+                        <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <span v-text="product"></span>
+                            <span class="caret"></span>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li v-for="p in products">
+                                <a href="#" v-on:click="selectProduct" v-text="p"></a>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="btn-group navbar-btn">
+                        <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <span v-text="province"></span>
+                            <span class="caret"></span>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li v-for="prov in districtCode">
+                                <a href="#" v-on:click="selectProvince" v-text="prov.province" v-bind:code="prov.code" v-bind:group="prov.group"></a>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="btn-group navbar-btn">
+                        <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <span v-text="city"></span>
+                            <span class="caret"></span>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li v-for="c in cityList">
+                                <a href="#" v-on:click="selectCity" v-text="c.name" v-bind:code="c.code"></a>
+                            </li>
+                        </ul>
+                    </div>
+                    <a class="btn btn-primary" role="button" v-if="link" v-bind:href="link" target="_blank">申请链接</a>
+                </ul>
+                <ul class="nav navbar-nav navbar-right" id="app_status">
+                    <li v-if="running">
+                        <a class="glyphicon glyphicon-play" aria-hidden="true" href="#"></a>
+                    </li>
+                    <li v-else>
+                        <a class="glyphicon glyphicon-stop" aria-hidden="true" href="#"></a>
+                    </li>
+                    <li>
+                        <a href="#" v-text="'已抓取' + count + '条'"></a>
+                    </li>
+                    <li class="dropdown">
+                        <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">操作
+                            <span class="caret"></span>
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li v-if="running">
+                                <a href="#" v-on:click="stop">停止爬虫</a>
+                            </li>
+                            <li v-else>
+                                <a href="#" v-on:click="start">启动爬虫</a>
+                            </li>
+                            <li v-if="running == false">
+                                <a href="#" v-on:click="empty">清空数据（更换省市需要执行）</a>
+                            </li>
+                            <li v-if="running && autoTerminate">
+                                <a href="#" v-on:click="toggleTerminate">关闭自动终止</a>
+                            </li>
+                            <li v-if="running && !autoTerminate">
+                                <a href="#" v-on:click="toggleTerminate">开启自动终止</a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <div class="container">
+        <div class="row">
+            <div class="col-md-4" id="app_num">
+                <div class="panel panel-default">
+                    <div class="panel-heading">筛选设置</div>
+                    <div class="panel-body">
+                        <div class="checkbox" v-for="f in filters">
+                            <label>
+                                <input type="checkbox" v-model="checkedFilters" v-bind:value="f">
+                                <span v-text="f"></span>
+                            </label>
+                        </div>
+                        <div class="input-group">
+                            <span class="input-group-addon">
+                                <input type="checkbox" v-model="hasCustomFilter">
+                            </span>
+                            <input type="text" class="form-control" placeholder="自定义（支持正则表达式）" v-model="customFilter">
+                        </div>
+                        <br>
+                        <button class="btn btn-default" v-on:click="checkAll">全选</button>
+                        <button class="btn btn-default" v-on:click="uncheckAll">取消全选</button>
+                        <button class="btn btn-default btn-success" v-on:click="fetch">查看结果(不影响爬虫)</button>
+                    </div>
+                </div>
+                <div class="panel panel-default" v-if="$.app_status.running">
+                    <div class="panel-heading">历史记录</div>
+                    <div class="panel-body">
+                        <textarea id="historyArea" class="form-control" rows="10" style="resize: none;" v-text="$.app_status.strHistory"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-8">
+                <table id="num_table" data-pagination="true" data-page-list="[10, 20, 50, 100]">
+                    <thead>
+                        <tr>
+                            <th data-field="number">号码</th>
+                            <th data-field="tag">标签</th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+    </div>
+    <footer class="text-center">
+        <p>本软件不得用于商业用途,仅做学习交流</p>
+        <p>by:
+            <a target="_blank" href="https://github.com/pyfaith">pyfaith</a>
+        </p>
+        <p>
+            <a href="mailto:pyfaith@foxmail.com">pyfaith@foxmail.com</a>
+        </p>
+    </footer>
+    <script src="https://cdn.bootcss.com/jquery/3.3.1/jquery.min.js"></script>
+    <script src="https://cdn.bootcss.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <script src="https://cdn.bootcss.com/bootstrap-table/1.11.1/bootstrap-table.min.js"></script>
+    <script src="https://cdn.bootcss.com/vue/2.5.13/vue.min.js"></script>
+    <script>
+        $.app_status = new Vue({
+            el: '#app_status',
+            data: {
+                running: false,
+                count: 0,
+                autoTerminate: true,
+                history: []
+            },
+            methods: {
+                start: function (event) {
+                    if ($.app_district.provinceCode != '' && $.app_district.cityCode != '') {
+                        $.get("/api/start", {
+                            product: $.app_district.product,
+                            province: $.app_district.province,
+                            provinceCode: $.app_district.provinceCode,
+                            city: $.app_district.city,
+                            cityCode: $.app_district.cityCode,
+                            groupKey: $.app_district.groupKey
+                        }, function (data) {
+                            $.app_status.running = true;
+                            $.app_status.autoTerminate = true;
+                        });
+                    } else {
+                        alert("请先选择省市")
+                    }
+                },
+                stop: function (event) {
+                    $.get("/api/stop", function (data) {
+                        $.app_status.running = false;
+                    });
+                },
+                empty: function (event) {
+                    if (confirm("确定要清空数据库？")) {
+                        $.get("/api/empty", function (data) {
+                            $.app_status.count = 0;
+                        });
+                    }
+                },
+                toggleTerminate: function (event) {
+                    $.get("/api/autoTerminate", { autoTerminate: !this.autoTerminate }, function (data) {
+                        $.app_status.autoTerminate = !$.app_status.autoTerminate;
+                    });
+                }
+            },
+            computed: {
+                strHistory: function () {
+                    h = []
+                    if (this.history == null || this.history.length == 0) {
+                        return "";
+                    }
+                    this.history.forEach(element => {
+                        h.push(element[0] + "新增" + element[1] + "条")
+                    });
+                    return h.join("\n")
+                }
+            },
+            updated: function() {
+                textarea = $("#historyArea");
+                if (textarea.length > 0) {
+                    textarea.scrollTop(textarea[0].scrollHeight);
+                }
+            }
+        });
+        $.app_district = new Vue({
+            el: '#app_district',
+            data: {
+                product: '请选择产品',
+                province: '请选择省份',
+                city: '请选择城市',
+                products: [],
+                link: "",
+                provinceCode: '',
+                cityCode: '',
+                groupKey: '',
+                cityList: [],
+                districtCode: []
+            },
+            methods: {
+                selectProduct: function (event) {
+                    this.product = event.target.innerHTML;
+                    this.refreshProvinceList();
+                    $.getJSON("/api/link", {"product": this.product}, function (data) {
+                        $.app_district.link = data["link"];
+                    });
+                },
+                selectProvince: function (event) {
+                    this.province = event.target.innerHTML;
+                    this.provinceCode = event.target.getAttribute("code");
+                    this.groupKey = event.target.getAttribute("group");
+                    this.refreshCityList();
+                },
+                selectCity: function (event) {
+                    this.city = event.target.innerHTML;
+                    this.cityCode = event.target.getAttribute("code");
+                },
+                refreshProvinceList: function (event) {
+                    $.getJSON("/api/district", {"product": this.product}, function(data) {
+                        $.app_district.districtCode = data;
+                    })
+                },
+                refreshCityList: function (event) {
+                    this.cityList = $.grep(this.districtCode, function (e) { return e.province == $.app_district.province; })[0].city;
+                    this.city = '请选择城市';
+                }
+            },
+            mounted: function () {
+                $.getJSON("/api/products", function (data) {
+                    $.app_district.products = data;
+                })
+            }
+        });
+        $.app_num = new Vue({
+            el: "#app_num",
+            data: {
+                filters: [],
+                checkedFilters: [],
+                hasCustomFilter: false,
+                customFilter: '',
+                numData: []
+            },
+            methods: {
+                fetch: function (event) {
+                    query = { filter: this.checkedFilters.join("|") }
+                    if (this.hasCustomFilter) {
+                        query.custom = this.customFilter;
+                    }
+                    $.getJSON("/api/nums", query, function (data) {
+                        $("#num_table").bootstrapTable('load', data);
+                    })
+                },
+                checkAll: function (event) {
+                    this.checkedFilters = this.filters;
+                },
+                uncheckAll: function (event) {
+                    this.checkedFilters = [];
+                }
+            },
+            mounted: function () {
+                $.getJSON("/api/filters", function (data) {
+                    $.app_num.filters = data;
+                });
+            }
+        });
+        $.refreshStatus = function () {
+            $.getJSON("/api/status", function (data) {
+                $.app_status.running = data.running;
+                $.app_status.count = data.count;
+                $.app_status.autoTerminate = data.autoTerminate;
+                $.app_status.history = data.history;
+                if (data.running) {
+                    $.app_district.product = data.product;
+                    $.app_district.province = data.province;
+                    $.app_district.provinceCode = data.provinceCode;
+                    $.app_district.groupKey = data.groupKey;
+                    $.app_district.city = data.city;
+                    $.app_district.cityCode = data.cityCode;
+                }
+            })
+        };
+        $.refreshStatus();
+        setInterval(function () {
+            if ($.app_status.running) {
+                $.refreshStatus();
+            }
+        }, 3000);
+        $('#num_table').bootstrapTable({});
+    </script>
+</body>
+
+</html>
